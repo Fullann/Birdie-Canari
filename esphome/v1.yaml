@@ -1,0 +1,133 @@
+esphome:
+  name: qualite-air-xiao
+  friendly_name: Birdie DIY
+  on_boot:
+    priority: -100
+    then:
+      - wait_until:
+          condition:
+            time.has_time:
+      - delay: 20s
+      - script.execute: update_servo
+      - delay: 2s
+      - script.execute: manage_sleep
+
+esp32:
+  board: seeed_xiao_esp32c6
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+
+ota:
+  platform: esphome
+
+wifi:
+  ssid: "TON_WIFI"
+  password: "TON_MOT_DE_PASSE"
+  fast_connect: true 
+  ap:
+    ssid: "BirdieDIYFallback"
+    password: "12345678"
+
+captive_portal:
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  scan: true
+
+sensor:
+  - platform: scd4x
+    co2:
+      name: "CO2"
+      id: co2_sensor
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidite"
+    address: 0x62
+    update_interval: 15s
+
+  # ── Batterie (décommenter quand R1/R2 câblés) ──────────────────────────
+  # - platform: adc
+  #   pin: GPIO0
+  #   name: "Batterie Tension"
+  #   id: battery_adc
+  #   update_interval: never
+  #   attenuation: auto
+  #   filters:
+  #     - multiply: 2.0
+  #
+  # - platform: copy
+  #   source_id: battery_adc
+  #   name: "Batterie Pourcentage"
+  #   unit_of_measurement: "%"
+  #   device_class: battery
+  #   state_class: measurement
+  #   filters:
+  #     - lambda: |-
+  #         float v = x;
+  #         if (v >= 4.2) return 100;
+  #         if (v <= 3.2) return 0;
+  #         return (v - 3.2) * 100.0 / (4.2 - 3.2);
+  # ──────────────────────────────────────────────────────────────────────
+
+output:
+  - platform: ledc
+    pin: GPIO2
+    id: servo_output
+    frequency: 50 Hz
+
+servo:
+  - id: air_servo
+    output: servo_output
+    transition_length: 2s
+    auto_detach_time: 1s
+
+deep_sleep:
+  id: deep_sleep_control
+
+script:
+  - id: update_servo
+    then:
+      - if:
+          condition:
+            lambda: 'return id(co2_sensor).has_state();'
+          then:
+            - servo.write:
+                id: air_servo
+                level: !lambda |-
+                  float co2 = id(co2_sensor).state;
+                  if (co2 <= 700.0f)  return  1.0f;
+                  if (co2 >= 1400.0f) return -1.0f;
+                  float ratio = (co2 - 700.0f) / 700.0f;
+                  return 1.0f - (ratio * 2.0f);
+
+  - id: manage_sleep
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          if (!now.is_valid()) {
+            id(deep_sleep_control).set_sleep_duration(300000ULL);
+            id(deep_sleep_control).begin_sleep(true);
+            return;
+          }
+          int now_sec = now.hour * 3600 + now.minute * 60 + now.second;
+          const int active_start = 7  * 3600;
+          const int sleep_start  = 22 * 3600;
+          if (now_sec >= sleep_start || now_sec < active_start) {
+            int target_sec = active_start;
+            if (now_sec >= sleep_start) target_sec += 24 * 3600;
+            int sleep_seconds = target_sec - now_sec;
+            id(deep_sleep_control).set_sleep_duration((uint64_t)sleep_seconds * 1000ULL);
+          } else {
+            id(deep_sleep_control).set_sleep_duration(5ULL * 60ULL * 1000ULL);
+          }
+      - deep_sleep.enter: deep_sleep_control

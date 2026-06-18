@@ -1,0 +1,31 @@
+template:
+  - sensor:
+      - name: "CO2 Derniere Valeur"
+        unique_id: co2_derniere_valeur
+        unit_of_measurement: "ppm"
+        device_class: carbon_dioxide
+        state_class: measurement
+        state: >
+          {{ states('sensor.qualite_air_xiao_co2')
+             if has_value('sensor.qualite_air_xiao_co2')
+             else this.state }}
+
+      - name: "Temperature Derniere Valeur"
+        unique_id: temperature_derniere_valeur
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: >
+          {{ states('sensor.qualite_air_xiao_temperature')
+             if has_value('sensor.qualite_air_xiao_temperature')
+             else this.state }}
+
+      - name: "Humidite Derniere Valeur"
+        unique_id: humidite_derniere_valeur
+        unit_of_measurement: "%"
+        device_class: humidity
+        state_class: measurement
+        state: >
+          {{ states('sensor.qualite_air_xiao_humidite')
+             if has_value('sensor.qualite_air_xiao_humidite')
+             else this.state }}

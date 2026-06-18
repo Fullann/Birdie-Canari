@@ -1,0 +1,163 @@
+esphome:
+  name: qualite-air-xiao
+  friendly_name: Birdie DIY
+  on_boot:
+    priority: -100
+    then:
+      - wait_until:
+          condition:
+            time.has_time:
+      - delay: 20s
+      - script.execute: check_air_quality
+      - delay: 3s
+      - script.execute: manage_sleep
+
+esp32:
+  board: seeed_xiao_esp32c6
+  framework:
+    type: esp-idf
+
+logger:
+api:
+ota:
+  platform: esphome
+
+wifi:
+  ssid: "TON_WIFI"
+  password: "TON_MOT_DE_PASSE"
+  fast_connect: true 
+  ap:
+    ssid: "BirdieDIYFallback"
+    password: "12345678"
+
+captive_portal:
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+# Stockage persistant : minutes consécutives au-dessus de 1000 ppm
+globals:
+  - id: minutes_above_threshold
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: bird_is_down
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  scan: true
+
+sensor:
+  - platform: scd4x
+    co2:
+      name: "CO2"
+      id: co2_sensor
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidite"
+    address: 0x62
+    update_interval: 60s  # Mesure toutes les minutes
+
+output:
+  - platform: ledc
+    pin: GPIO2
+    id: servo_output
+    frequency: 50 Hz
+
+servo:
+  - id: air_servo
+    output: servo_output
+    transition_length: 2s
+    auto_detach_time: 1500ms
+
+# Capteur texte pour l'état visible dans HA
+text_sensor:
+  - platform: template
+    name: "Etat Birdie"
+    id: birdie_state
+    lambda: |-
+      if (id(bird_is_down)) return {"Mauvais - Ouvrez les fenêtres !"};
+      return {"Bon - Air frais"};
+    update_interval: 60s
+
+script:
+  - id: bird_up
+    then:
+      - servo.write:
+          id: air_servo
+          level: 100%
+      - globals.set:
+          id: bird_is_down
+          value: 'false'
+      - lambda: 'id(minutes_above_threshold) = 0;'
+
+  - id: bird_down
+    then:
+      - servo.write:
+          id: air_servo
+          level: -100%
+      - globals.set:
+          id: bird_is_down
+          value: 'true'
+
+  - id: check_air_quality
+    then:
+      - lambda: |-
+          if (!id(co2_sensor).has_state()) return;
+
+          float co2 = id(co2_sensor).state;
+
+          // Logique Birdie® exacte :
+          // Descendre si > 1000 ppm depuis > 10 minutes
+          // Remonter si < 950 ppm
+
+          if (!id(bird_is_down)) {
+            // L'oiseau est en haut
+            if (co2 > 1000.0f) {
+              id(minutes_above_threshold)++;
+              ESP_LOGD("birdie", "CO2 > 1000 ppm depuis %d min (seuil: 10)", id(minutes_above_threshold));
+              if (id(minutes_above_threshold) >= 10) {
+                id(bird_down).execute();
+              }
+            } else {
+              // Réinitialiser le compteur si on repasse sous 1000
+              id(minutes_above_threshold) = 0;
+            }
+          } else {
+            // L'oiseau est en bas → remonter seulement sous 950 ppm (hystérésis)
+            if (co2 < 950.0f) {
+              id(bird_up).execute();
+            }
+          }
+
+  - id: manage_sleep
+    then:
+      - lambda: |-
+          auto now = id(ha_time).now();
+          if (!now.is_valid()) {
+            id(deep_sleep_control).set_sleep_duration(60000ULL); // 1 min
+            id(deep_sleep_control).begin_sleep(true);
+            return;
+          }
+          int now_sec = now.hour * 3600 + now.minute * 60 + now.second;
+          const int active_start = 7  * 3600;
+          const int sleep_start  = 22 * 3600;
+
+          if (now_sec >= sleep_start || now_sec < active_start) {
+            int target_sec = active_start;
+            if (now_sec >= sleep_start) target_sec += 24 * 3600;
+            id(deep_sleep_control).set_sleep_duration((uint64_t)(target_sec - now_sec) * 1000ULL);
+          } else {
+            // Réveil toutes les minutes pour suivre les 10 min de seuil
+            id(deep_sleep_control).set_sleep_duration(60000ULL);
+          }
+      - deep_sleep.enter: deep_sleep_control
+
+deep_sleep:
+  id: deep_sleep_control
