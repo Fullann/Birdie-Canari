@@ -46,26 +46,25 @@ Inspiré du canari des mineurs : autrefois, les mineurs emmenaient un canari dan
 
 La chaîne d'alimentation fonctionne ainsi :
 
-```
-USB-C / Micro-USB
-       │
-   ┌───▼───┐
-   │TP4056 │  ← Charge la LiPo et la protège (surintensité, surcharge)
-   └───┬───┘
-       │  B+ / B-
-   ┌───▼───────────┐
-   │  LiPo 3.7 V   │
-   │  3800 mAh     │
-   └───┬───────────┘
-       │ OUT+ / OUT-
-       ├──────────────────────────────── XIAO ESP32C6 (BAT+ via pin batterie)
-       │
-   ┌───▼───┐
-   │MT3608 │  ← Boost 3.7 V → 5 V (ajusté avec le trimmer)
-   └───┬───┘
-       │ OUT+ 5V / OUT- GND
-       ├──────────────────────────────── XIAO 5V pin (alimentation backup)
-       └──────────────────────────────── SG90 fil ROUGE (alimentation servo)
+```mermaid
+flowchart TD
+    %% No HTML tags in labels, quote if special characters
+    USB["🔌 USB (5V)"] --> TP4056["⚡ TP4056 (Chargeur)"]
+    TP4056 -- "B+ / B-" --> LIPO["🔋 Batterie LiPo (3.7V)"]
+    
+    LIPO -- "OUT+ (3.7V)" --> XIAO_BAT["🧠 XIAO ESP32C6 (BAT+)"]
+    LIPO -- "OUT+ (3.7V)" --> MT3608["🚀 MT3608 (Boost 5V)"]
+    LIPO -- "OUT- (GND)" --> GND["GND (Masse commune)"]
+    
+    MT3608 -- "OUT+ (5V)" --> XIAO_5V["🧠 XIAO ESP32C6 (5V in)"]
+    MT3608 -- "OUT+ (5V)" --> SERVO_VCC["⚙️ Moteur (Servo SG90 - Fil Rouge)"]
+    
+    style TP4056 fill:#8e44ad,stroke:#9b59b6,stroke-width:2px,color:#fff
+    style LIPO fill:#27ae60,stroke:#2ecc71,stroke-width:2px,color:#fff
+    style MT3608 fill:#f39c12,stroke:#f1c40f,stroke-width:2px,color:#fff
+    style XIAO_BAT fill:#2980b9,stroke:#3498db,stroke-width:2px,color:#fff
+    style XIAO_5V fill:#2980b9,stroke:#3498db,stroke-width:2px,color:#fff
+    style SERVO_VCC fill:#c0392b,stroke:#e74c3c,stroke-width:2px,color:#fff
 ```
 
 > ⚠️ **Régler le MT3608 en premier** : avant de connecter quoi que ce soit, ajuster le trimmer du MT3608 à **5.0 V** avec un multimètre. Ne jamais dépasser 5.5 V sur le XIAO ou le SG90.
@@ -88,46 +87,72 @@ USB-C / Micro-USB
 
 ### Schéma de câblage
 
+```mermaid
+flowchart LR
+    subgraph ALIM ["⚡ Alimentation"]
+        TP["TP4056"]
+        LIPO["Batterie 3.7V"]
+        BOOST["MT3608 (5V)"]
+    end
+
+    subgraph XIAO ["🧠 Microcontrôleur XIAO ESP32C6"]
+        P_5V["Broche 5V"]
+        P_3V3["Broche 3.3V"]
+        P_GND["GND"]
+        P_D4["GPIO22 (D4)"]
+        P_D5["GPIO23 (D5)"]
+        P_D2["GPIO2 (D2)"]
+        P_A0["GPIO0 (A0)"]
+    end
+
+    subgraph SENSOR ["👁️ Capteur CO2 (SCD41)"]
+        SCD_VCC["VCC"]
+        SCD_GND["GND"]
+        SCD_SDA["SDA"]
+        SCD_SCL["SCL"]
+    end
+
+    subgraph MOTOR ["⚙️ Moteur (Servo SG90)"]
+        SRV_VCC["VCC (Rouge)"]
+        SRV_GND["GND (Marron/Noir)"]
+        SRV_SIG["Signal (Orange/Jaune)"]
+    end
+
+    %% Power routing
+    BOOST -- "5V" --> P_5V
+    BOOST -- "5V" --> SRV_VCC
+    P_3V3 -- "3.3V" --> SCD_VCC
+    
+    %% GND routing
+    P_GND --- SCD_GND
+    P_GND --- SRV_GND
+    LIPO -- "GND" --- P_GND
+    
+    %% Data routing
+    P_D4 -- "I2C SDA" --> SCD_SDA
+    P_D5 -- "I2C SCL" --> SCD_SCL
+    P_D2 -- "PWM" --> SRV_SIG
+    
+    %% Battery reading (Pont diviseur)
+    LIPO -- "Pont Diviseur" --> P_A0
+    
+    style XIAO fill:#2c3e50,stroke:#34495e,stroke-width:2px,color:#fff
+    style SENSOR fill:#27ae60,stroke:#2ecc71,stroke-width:2px,color:#fff
+    style MOTOR fill:#c0392b,stroke:#e74c3c,stroke-width:2px,color:#fff
+    style ALIM fill:#f39c12,stroke:#f1c40f,stroke-width:2px,color:#fff
 ```
-                      XIAO ESP32C6
-         ┌────────────────────────────────────────┐
-USB-C    │                                        │
- │       │  5V ───── MT3608 OUT+ ─── SG90 ROUGE  │
-TP4056   │                                        │
- │B+─────┤  BAT pin (si connecteur)               │
- │       │                                        │
- │OUT+───┤──── MT3608 IN+                         │
- │       │                                        │
- │       │  GPIO22 (D4) ──────────── SCD41 SDA   │
- │       │  GPIO23 (D5) ──────────── SCD41 SCL   │
- │       │  GPIO2  (D2) ──────────── SG90 ORANGE │
- │       │                                        │
- │       │  GPIO0  (A0) ──── R1 100kΩ ─── BAT+  │
- │       │                       │                │
- │       │                   R2 100kΩ             │
- │       │                       │                │
- │       │  GND ─────────────────┴─── SCD41 GND  │
- │       │        │              │                │
- │       │        │          MT3608 OUT-          │
- │       │        │          MT3608 IN-           │
- │       │        └──────── SG90 BRUN/NOIR        │
- │       │        └──────── TP4056 OUT-           │
- └───────┴────────────────────────────────────────┘
-         Masse commune obligatoire partout
-```
+> **Note :** La masse (GND) doit être commune à tous les composants.
 
 ### Pont diviseur — mesure batterie
 
-```
-BAT+ (OUT+ TP4056)
-  │
-  R1 (100 kΩ)
-  │
-  ├──── GPIO0 (A0) — lecture ADC
-  │
-  R2 (100 kΩ)
-  │
- GND
+```mermaid
+flowchart TD
+    BAT["🔋 BAT+ (3.7V - 4.2V)"] --> R1["Résistance R1 (100 kΩ)"]
+    R1 --> NODE(("Point milieu"))
+    NODE --> R2["Résistance R2 (100 kΩ)"]
+    R2 --> GND["GND (Masse)"]
+    
+    NODE -. "Lecture de la tension" .-> XIAO_A0["🧠 XIAO GPIO0 (A0)"]
 ```
 
 | Tension batterie | Tension lue sur A0 |
@@ -180,6 +205,28 @@ La v2 (`v2.yaml`) reproduit exactement le comportement du produit commercial :
 | Complexité du code | Simple | Modérée |
 
 > 💡 **Recommandation** : utiliser la v2 pour un comportement fidèle à l'original. Utiliser la v1 si vous préférez un indicateur visuel graduel ou souhaitez expérimenter.
+
+***
+
+## 🚀 Comment flasher le code sur le XIAO ESP32C6
+
+Le code de ce projet utilise **ESPHome**. Voici les étapes simples pour l'installer sur votre carte XIAO :
+
+### Méthode 1 : Via ESPHome Web (La plus simple, sans installation)
+1. Branchez votre XIAO ESP32C6 à votre ordinateur via un câble USB-C (assurez-vous qu'il permet le transfert de données).
+2. Ouvrez le navigateur **Google Chrome** ou **Microsoft Edge** et allez sur [ESPHome Web](https://web.esphome.io/).
+3. Cliquez sur **Connect** et sélectionnez le port série de votre XIAO dans la fenêtre qui s'ouvre.
+4. Cliquez sur **Install** puis choisissez le fichier de configuration de ce dépôt (ex: `esphome/v2.yaml`).
+5. Renseignez vos identifiants Wi-Fi lorsque cela vous est demandé.
+6. Attendez la fin de la compilation et du flashage. Votre oiseau est prêt !
+
+### Méthode 2 : Via Home Assistant (Si vous l'utilisez déjà)
+1. Ouvrez Home Assistant et allez dans le module complémentaire **ESPHome**.
+2. Créez un nouvel appareil (bouton **New Device**).
+3. Nommez-le (ex: `birdie-diy`) et choisissez la plateforme **ESP32-C6**.
+4. Copiez le contenu de `esphome/v2.yaml` (ou modifiez-le selon vos besoins) et collez-le dans l'éditeur de configuration du nouvel appareil.
+5. Branchez le XIAO à la machine hébergeant Home Assistant, ou utilisez la méthode *Plug into this computer* pour flasher via le navigateur.
+6. Cliquez sur **Install** et patientez pendant la création du firmware.
 
 ***
 
