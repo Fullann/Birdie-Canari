@@ -4,6 +4,7 @@ esphome:
   on_boot:
     priority: -100
     then:
+      - component.update: battery_adc
       - wait_until:
           condition:
             time.has_time:
@@ -63,6 +64,33 @@ sensor:
       name: "Humidite"
     address: 0x62
     update_interval: 60s  # Mesure toutes les minutes
+
+  # ── Surveillance de la batterie LiPo (Pont diviseur R1=100k / R2=100k) ──
+  - platform: adc
+    pin: GPIO0
+    name: "Qualité Air Xiao Batterie Tension"
+    id: battery_adc
+    update_interval: never
+    attenuation: 12db
+    filters:
+      - multiply: 2.0  # Compense le pont diviseur (divisé par 2)
+
+  - platform: copy
+    source_id: battery_adc
+    name: "Qualité Air Xiao Batterie Pourcentage"
+    id: battery_percent
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    filters:
+      - lambda: |-
+          float v = x;
+          if (v >= 4.15) return 100.0;
+          if (v <= 3.25) return 0.0;
+          if (v > 3.80)  return 60.0 + (v - 3.80) * (40.0 / (4.15 - 3.80));
+          if (v > 3.65)  return 20.0 + (v - 3.65) * (40.0 / (3.80 - 3.65));
+          return (v - 3.25) * (20.0 / (3.65 - 3.25));
+  # ──────────────────────────────────────────────────────────────────────
 
 output:
   - platform: ledc

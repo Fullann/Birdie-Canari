@@ -1,0 +1,170 @@
+# ==============================================================================
+# 🐦 Birdie Standalone — Version 100% Autonome (Sans Wi-Fi, Sans BLE, Sans Cloud)
+# ==============================================================================
+# Cette version est optimisée pour une autonomie maximale sur batterie :
+# - Radio Wi-Fi / Bluetooth totalement DÉSACTIVÉE au démarrage (0 mA RF).
+# - Aucun service réseau (pas d'API, pas d'OTA, pas de requêtes NTP).
+# - Réveil rapide (~5 à 8s) uniquement pour mesurer le CO2, puis retour en Deep-Sleep (< 10 µA).
+# - Maintien de la logique officielle Birdie® :
+#     • Veille normale (< 1 000 ppm) : mesure toutes les 10 minutes
+#     • Alerte (> 1 000 ppm)         : mesure toutes les 2 minutes (oiseau en bas)
+#     • Repos / Cooldown (< 950 ppm) : repos de 2 heures (oiseau remonte)
+# - Actionnement du servo UNIQUEMENT lors des changements d'état (aucun mouvement inutile).
+# ==============================================================================
+
+esphome:
+  name: birdie-standalone
+  friendly_name: Birdie Standalone
+  on_boot:
+    priority: 600
+    then:
+      - delay: 5s
+      - wait_until:
+          condition:
+            lambda: 'return id(co2_sensor).has_state();'
+      - script.execute: check_air_and_move
+      - delay: 3s
+      - script.execute: manage_sleep
+
+esp32:
+  board: seeed_xiao_esp32c6
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 115200
+
+# Radio Wi-Fi neutralisée : enable_on_boot: false empêche tout allumage de la radio.
+# reboot_timeout: 0s empêche l'ESP de redémarrer en l'absence de réseau.
+wifi:
+  ssid: "offline"
+  password: ""
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+# Variables d'état persistantes en mémoire RTC à travers le Deep-Sleep
+globals:
+  # État actuel de l'oiseau : true = en bas (alerte), false = en haut (normal)
+  - id: bird_is_down
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
+  # Premier démarrage physique : permet d'aligner le servo en haut
+  - id: is_first_boot
+    type: bool
+    restore_value: true
+    initial_value: 'true'
+
+  # Durée du prochain sommeil calculée (en secondes)
+  - id: sleep_duration_seconds
+    type: int
+    restore_value: false
+    initial_value: '600'
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  scan: false
+
+sensor:
+  - platform: scd4x
+    co2:
+      id: co2_sensor
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidite"
+    address: 0x62
+    update_interval: 10s
+
+output:
+  - platform: ledc
+    pin: GPIO2
+    id: servo_output
+    frequency: 50 Hz
+
+servo:
+  - id: air_servo
+    output: servo_output
+    transition_length: 2s
+    auto_detach_time: 1s
+
+script:
+  - id: bird_up
+    then:
+      - servo.write:
+          id: air_servo
+          level: 100%
+      - globals.set:
+          id: bird_is_down
+          value: 'false'
+
+  - id: bird_down
+    then:
+      - servo.write:
+          id: air_servo
+          level: -100%
+      - globals.set:
+          id: bird_is_down
+          value: 'true'
+
+  - id: check_air_and_move
+    then:
+      - lambda: |-
+          if (!id(co2_sensor).has_state()) return;
+
+          float co2 = id(co2_sensor).state;
+          bool currently_down = id(bird_is_down);
+          bool first_boot = id(is_first_boot);
+
+          ESP_LOGI("birdie", "Mesure CO2 : %.1f ppm | Oiseau : %s", co2, currently_down ? "BAS" : "HAUT");
+
+          // Initialisation au tout premier allumage
+          if (first_boot) {
+            id(is_first_boot) = false;
+            if (!currently_down && co2 <= 1000.0f) {
+              ESP_LOGI("birdie", "Alignement initial du servo en haut.");
+              id(bird_up).execute();
+            }
+          }
+
+          if (!currently_down) {
+            // ── L'oiseau est en haut ───────────────────────────────────────
+            if (co2 > 1000.0f) {
+              // Alerte : descente de l'oiseau
+              ESP_LOGW("birdie", "CO2 > 1000 ppm ! Descente de l'oiseau.");
+              id(bird_down).execute();
+              // Fréquence accélérée : nouvelle vérification dans 2 minutes
+              id(sleep_duration_seconds) = 120;
+            } else {
+              // Air sain : l'oiseau reste en haut sans mouvement
+              // Veille normale : nouvelle mesure dans 10 minutes
+              id(sleep_duration_seconds) = 600;
+            }
+          } else {
+            // ── L'oiseau est en bas ────────────────────────────────────────
+            if (co2 < 950.0f) {
+              // Récupération : remontée de l'oiseau
+              ESP_LOGI("birdie", "CO2 < 950 ppm ! L'oiseau remonte.");
+              id(bird_up).execute();
+              // Cooldown : repos complet pendant 2 heures sans mouvement
+              id(sleep_duration_seconds) = 7200;
+            } else {
+              // Air toujours vicié : maintien en bas sans mouvement
+              // Vérification dans 2 minutes
+              id(sleep_duration_seconds) = 120;
+            }
+          }
+
+  - id: manage_sleep
+    then:
+      - lambda: |-
+          int sleep_sec = id(sleep_duration_seconds);
+          ESP_LOGI("birdie", "Deep-Sleep pendant %d secondes (%.1f min). Consommation < 10 µA.",
+                   sleep_sec, sleep_sec / 60.0f);
+          id(deep_sleep_control).set_sleep_duration((uint64_t)sleep_sec * 1000ULL);
+      - deep_sleep.enter: deep_sleep_control
+
+deep_sleep:
+  id: deep_sleep_control

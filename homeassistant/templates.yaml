@@ -29,3 +29,23 @@ template:
           {{ states('sensor.qualite_air_xiao_humidite')
              if has_value('sensor.qualite_air_xiao_humidite')
              else this.state }}
+
+      - name: "Batterie Birdie Tension"
+        unique_id: birdie_batterie_tension
+        unit_of_measurement: "V"
+        device_class: voltage
+        state_class: measurement
+        state: >
+          {{ states('sensor.qualite_air_xiao_batterie_tension')
+             if has_value('sensor.qualite_air_xiao_batterie_tension')
+             else this.state }}
+
+      - name: "Batterie Birdie Pourcentage"
+        unique_id: birdie_batterie_pourcentage
+        unit_of_measurement: "%"
+        device_class: battery
+        state_class: measurement
+        state: >
+          {{ states('sensor.qualite_air_xiao_batterie_pourcentage')
+             if has_value('sensor.qualite_air_xiao_batterie_pourcentage')
+             else this.state }}

@@ -1,0 +1,13 @@
+services:
+  esphome:
+    container_name: esphome
+    image: ghcr.io/esphome/esphome:latest
+    environment:
+      - USERNAME=admin
+      - PASSWORD=motdepassefort        # ⚠️ À changer absolument
+    volumes:
+      - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    ports:
+      - "6052:6052"
