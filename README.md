@@ -1,6 +1,11 @@
 # 🐦 Birdie DIY — Moniteur de qualité d'air open source
 
+<p align="center">
+  <img src="docs/images/birdie_showcase.jpg" alt="Birdie DIY Showcase" width="420">
+</p>
+
 > **Reproduction DIY du projet [Birdie® Fresh Air Monitor™](https://birdie.design/fr)** — un indicateur visuel de qualité d'air basé sur le CO2, inspiré du canari des mineurs. Lorsque l'air est bon, l'oiseau se dresse. Lorsque le CO2 dépasse un seuil, il s'abaisse pour vous signaler d'ouvrir les fenêtres.
+
 
 ***
 
@@ -226,8 +231,14 @@ flowchart LR
 ```
 
 > ⚠️ **Masse commune (GND) obligatoire :** Tous les points marqués `GND` (TP4056 `OUT-`, MT3608 `IN-` et `OUT-`, XIAO `GND`, SG90 fil noir, SCD41 `GND`, Buzzer fil noir, et résistance R2) doivent être **reliés ensemble**.
+> 
+> 🔋 **Précautions de câblage sur le chargeur TP4056 :**  
+> - Les bornes **`B+`** et **`B-`** doivent être reliées **uniquement aux fils de la batterie LiPo** (Rouge sur `B+`, Noir sur `B-`).
+> - Les bornes **`OUT+`** et **`OUT-`** alimentent le reste du circuit (vers le MT3608).  
+> *Si vous câblez par erreur le circuit sur `B+ / B-`, la batterie ne prendra pas le relais lorsque le câble de charge est débranché et les sécurités anti-décharge profonde seront inopérantes.*
 
 ### Détail du pont diviseur — mesure de la batterie
+
 
 ```mermaid
 flowchart TD
@@ -336,39 +347,74 @@ Pour ceux qui veulent utiliser le Wi-Fi de leur box sans antenne Bluetooth Proxy
 
 ## 🚀 Comment flasher le code sur le XIAO ESP32C6
 
-Le code de ce projet utilise **ESPHome**. Voici les étapes simples pour l'installer sur votre carte XIAO :
+Le projet propose **7 firmwares** adaptés à vos besoins :
+* **Connectés basse consommation ou 100% hors-ligne** (Zigbee, BLE BTHome V2, Standalone v1/v2) ➔ Flasher via **VS Code (Méthode 1)** ou **Arduino IDE (Méthode 2)**.
+* **Connectés Wi-Fi** (ESPHome v1 / v2) ➔ Flasher via **ESPHome Web (Méthode 3)** ou **Home Assistant (Méthode 4)**.
 
-### Méthode 1 : Via ESPHome Web (La plus simple, sans installation)
-1. Branchez votre XIAO ESP32C6 à votre ordinateur via un câble USB-C (assurez-vous qu'il permet le transfert de données).
-2. Ouvrez le navigateur **Google Chrome** ou **Microsoft Edge** et allez sur [ESPHome Web](https://web.esphome.io/).
-3. Cliquez sur **Connect** et sélectionnez le port série de votre XIAO dans la fenêtre qui s'ouvre.
-4. Cliquez sur **Install** puis choisissez le fichier de configuration de ce dépôt (ex: `esphome/v2.yaml`).
-5. Renseignez vos identifiants Wi-Fi lorsque cela vous est demandé.
-6. Attendez la fin de la compilation et du flashage. Votre oiseau est prêt !
+---
 
-### Méthode 2 : Via Home Assistant (Si vous l'utilisez déjà)
-1. Ouvrez Home Assistant et allez dans le module complémentaire **ESPHome**.
-2. Créez un nouvel appareil (bouton **New Device**).
-3. Nommez-le (ex: `birdie-diy`) et choisissez la plateforme **ESP32-C6**.
-4. Copiez le contenu de `esphome/v1.yaml` (ou `esphome/v2.yaml`) et collez-le dans l'éditeur de configuration.
-5. Branchez le XIAO à la machine hébergeant Home Assistant, ou utilisez la méthode *Plug into this computer* pour flasher via le navigateur.
-6. Cliquez sur **Install** et patientez pendant la création du firmware.
+### Méthode 1 : Via VS Code & PlatformIO (Recommandé, simple et rapide) 💻
+Si vous utilisez déjà **Visual Studio Code**, aucun compilateur externe n'est requis :
+1. Installez l'extension **PlatformIO IDE** depuis l'onglet Extensions de VS Code (`platformio.platformio-ide`).
+2. Ouvrez le dossier du projet dans VS Code.
+3. Dans le fichier [`platformio.ini`](./platformio.ini), choisissez le firmware à compiler en décommentant la ligne souhaitée (par défaut `arduino/birdie_zigbee`).
+4. Branchez votre XIAO ESP32-C6 en USB-C.
+5. Cliquez sur la flèche **`→` (PlatformIO: Upload)** dans la barre d'état tout en bas de VS Code (ou via l'icône alien 👽 PlatformIO > *Project Tasks* > *Upload*).
 
-### Méthode 3 : Via Arduino IDE (Pour les firmwares autonomes ultra-basse consommation) ⚡
+> 💡 **Astuce si votre carte dort déjà (Deep-Sleep) et que le port USB n'apparaît pas :**  
+> Maintenez enfoncé le petit bouton **B (BOOT)** sur le XIAO, appuyez brièvement sur le bouton **R (RESET)** (ou branchez le câble USB), puis relâchez le bouton **B**. La carte se fige en mode Bootloader ROM : elle ne s'endort plus et son port USB reste ouvert en permanence pour le flash !
+
+---
+
+### Méthode 2 : Via Arduino IDE (Alternative classique) ⚡
 1. Téléchargez et installez l'**[Arduino IDE](https://www.arduino.cc/en/software)** (v2.x).
 2. Dans `Fichier > Préférences`, ajoutez l'URL du gestionnaire de cartes ESP32 :
    `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
-3. Dans `Outils > Type de carte > Gestionnaire de cartes`, installez le package **esp32** par *Espressif Systems* (v3.0.0 ou ultérieure pour le support complet de l'ESP32-C6).
+3. Dans `Outils > Type de carte > Gestionnaire de cartes`, installez le package **esp32** par *Espressif Systems* (**v3.0.0 ou ultérieure** obligatoire pour l'ESP32-C6 et le Zigbee natif).
 4. Installez les deux bibliothèques requises via `Outils > Gérer les bibliothèques` :
    - **Sensirion I2C SCD4x** par *Sensirion*
    - **ESP32Servo** par *Kevin Harrington*
 5. Ouvrez le fichier correspondant à votre usage :
-   - `arduino/birdie_bthome/birdie_bthome.ino` *(⭐ Recommandé connecté : Bluetooth BTHome V2, auto-découverte HA)*
-   - `arduino/birdie_standalone_v2/birdie_standalone_v2.ino` *(⭐ Recommandé hors-ligne : règle des 10 min, alerte batterie, FRC, buzzer)*
-   - `arduino/birdie_zigbee/birdie_zigbee.ino` *(Pour réseau domotique Zigbee 3.0)*
+   - `arduino/birdie_bthome/birdie_bthome.ino` *(⭐ Recommandé connecté BLE : Auto-découverte HA)*
+   - `arduino/birdie_zigbee/birdie_zigbee.ino` *(Pour réseau domotique Zigbee 3.0 / Zigbee2MQTT / ZHA)*
+   - `arduino/birdie_standalone_v2/birdie_standalone_v2.ino` *(⭐ Recommandé hors-ligne : 10 min, alerte batterie, FRC, buzzer)*
    - `arduino/birdie_standalone/birdie_standalone.ino` *(Logique v1 directe)*
-6. Sélectionnez la carte **Seeed Studio XIAO ESP32C6** (ou *ESP32C6 Dev Module*) et le port USB correspondant.
-7. Cliquez sur **Téléverser** (flèche droite). En quelques secondes, votre Birdie est prêt !
+6. Si vous flashez la version **Zigbee**, sélectionnez impérativement dans le menu `Outils` :
+   - **Zigbee Mode** : `Zigbee ED (End Device)`
+   - **Partition Scheme** : `Zigbee 4MB with spiffs`
+7. Sélectionnez la carte **Seeed Studio XIAO ESP32C6** et le port USB correspondant, puis cliquez sur **Téléverser**.
+
+---
+
+### Méthode 3 : Via ESPHome Web (Pour les versions Wi-Fi, sans installation) 🌐
+1. Branchez votre XIAO ESP32C6 à votre ordinateur via un câble USB-C (supportant les données).
+2. Ouvrez le navigateur **Google Chrome** ou **Microsoft Edge** et allez sur [ESPHome Web](https://web.esphome.io/).
+3. Cliquez sur **Connect** et sélectionnez le port série de votre XIAO dans la fenêtre qui s'ouvre.
+4. Cliquez sur **Install** puis choisissez le fichier de configuration de ce dépôt (ex: `esphome/v1.yaml` ou `esphome/v2.yaml`).
+5. Renseignez vos identifiants Wi-Fi lorsque cela vous est demandé et patientez.
+
+---
+
+### Méthode 4 : Via Home Assistant (Module ESPHome) 🏠
+1. Ouvrez Home Assistant et allez dans le module complémentaire **ESPHome**.
+2. Créez un nouvel appareil (bouton **New Device**), nommez-le et choisissez **ESP32-C6**.
+3. Copiez le contenu de `esphome/v1.yaml` (ou `esphome/v2.yaml`) et collez-le dans l'éditeur de configuration.
+4. Branchez le XIAO à la machine hébergeant Home Assistant, ou utilisez la méthode *Plug into this computer* pour flasher via le navigateur.
+5. Cliquez sur **Install** et patientez pendant la création du firmware.
+
+---
+
+### 🔗 Appairage et intégration domotique
+
+#### Pour le firmware Zigbee 3.0 (`birdie_zigbee.ino`) :
+1. Dans **Zigbee2MQTT** ou **Home Assistant ZHA**, cliquez sur **"Autoriser l'appairage"** (*Permit join*).
+2. Au premier allumage, le Birdie cherche automatiquement le réseau pendant 90 secondes et s'associe.
+3. **Réinitialisation usine / Nouvel appairage** : En cas de changement de réseau ou de coordinateur, maintenez le bouton physique **BOOT (GPIO9)** enfoncé pendant **3 secondes**. L'appareil efface ses anciens identifiants Zigbee et relance immédiatement une recherche propre.
+
+#### Pour le firmware Bluetooth BTHome V2 (`birdie_bthome.ino`) :
+* **Zéro configuration requise** : dès que le Birdie est allumé, Home Assistant (via une clé Bluetooth ou un ESP32 Bluetooth Proxy) le détecte automatiquement avec une notification *"Nouvel appareil BTHome découvert"* ! Cliquez simplement sur **Configurer**.
+
+
 
 ***
 
@@ -586,7 +632,9 @@ Les fichiers STL, 3MF et sources OpenSCAD sont organisés dans le dossier [`/par
 ```
 birdie-diy/
 ├── README.md                            ← Ce document récapitulatif complet
+├── platformio.ini                       ← Configuration de compilation VS Code / PlatformIO
 ├── esphome/
+
 │   ├── v1.yaml                          ← Firmware v1 officiel (Wi-Fi + Home Assistant, cycle dynamique + batterie)
 │   ├── v2.yaml                          ← Firmware v2 (Wi-Fi + Home Assistant, règle 10 min consécutives + batterie)
 │   └── standalone.yaml                  ← Firmware ESPHome 100% hors-ligne (sans Wi-Fi ni BLE)

@@ -178,7 +178,7 @@ void broadcastBTHome(uint16_t co2, float temp, float hum, int batPct, float batV
   payload[idx++] = (uint8_t)(voltMv & 0xFF);
   payload[idx++] = (uint8_t)((voltMv >> 8) & 0xFF);
 
-  std::string serviceData((char*)payload, idx);
+  String serviceData((char*)payload, idx);
   advertData.setServiceData(BLEUUID((uint16_t)0xFCD2), serviceData);
   advertData.setName("Birdie DIY");
 

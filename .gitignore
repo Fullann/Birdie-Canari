@@ -1,1 +1,12 @@
+# Système d'exploitation
 .DS_Store
+Thumbs.db
+
+# Environnement PlatformIO & VS Code
+.pio/
+.vscode/
+.cache/
+compile_commands.json
+
+# ESPHome local
+.esphome/
