@@ -41,7 +41,8 @@ Inspiré du canari des mineurs : autrefois, les mineurs emmenaient un canari dan
 | Servo | SG90 (9g) | Indicateur visuel (aiguille oiseau) |
 | Chargeur batterie | TP4056 avec protection (DW01A) | Charge LiPo via USB-C / micro-USB |
 | Boost converter | MT3608 | Monte la tension 3.7 V → 5 V pour le servo |
-| Batterie | LiPo 1S 3.7 V – 3800 mAh | Alimentation autonome |
+| Batterie | Cellule Li-ion 18650 ou LiPo 1S 3.7 V (ex: 3800 mAh) | Alimentation autonome longue durée |
+| Plaque de prototypage (PCB) | Plaque perforée à pastilles (Perfboard 2.54 mm) découpée ~30×70 mm | Support central sur lequel sont soudés les composants (XIAO, MT3608, pont diviseur) et qui se glisse dans les glissières du boîtier |
 | R1 | 100 kΩ (1/4 W) | Pont diviseur batterie (bras haut) |
 | R2 | 100 kΩ (1/4 W) | Pont diviseur batterie (bras bas) |
 | Buzzer (optionnel) | Buzzer piézoélectrique passif (3V/5V) | Gazouillis sonore mélodieux lors de l'alerte CO2 |
@@ -624,6 +625,21 @@ Les fichiers STL, 3MF et sources OpenSCAD sont organisés dans le dossier [`/par
 | `parts/support/` | `pied-code.scad` | Code source OpenSCAD du pied de support |
 
 > **Paramètres d'impression conseillés** : PLA ou PETG, hauteur de couche 0.20 mm, remplissage 20% (remplissage 100% conseillé pour `axe.stl`), supports recommandés pour le boîtier.
+
+### 📸 Aperçu du montage réel et intégration interne
+
+<p align="center">
+  <img src="docs/images/birdie_interior_top.jpg" alt="Vue de dessus intérieure du boîtier" width="48%">
+  &nbsp;
+  <img src="docs/images/birdie_interior_angle.jpg" alt="Vue d'angle du montage PCB et de la batterie 18650" width="48%">
+</p>
+
+L'intégration mécanique et électronique tire pleinement parti du boîtier cylindrique :
+* **Plaque PCB verticale sur glissières** : Tous les composants principaux (XIAO ESP32-C6, régulateur élévateur MT3608, pont diviseur de tension) sont soudés sur une plaque de prototypage perforée découpée aux dimensions (~30 × 70 mm). Elle s'insère directement dans les glissières verticales moulées dans le boîtier.
+* **Cellule Li-ion 18650** : Logée sur le côté pour offrir une autonomie record (3800 mAh).
+* **Port de recharge USB-C (TP4056)** : Positionné au fond du boîtier avec la prise USB-C alignée avec la découpe extérieure pour recharger facilement sans démontage.
+* **Capteur SCD41 & Servomoteur SG90** : Fixés au centre pour aligner l'axe mécanique d'entraînement avec l'oiseau extérieur et assurer une bonne circulation de l'air ambiant vers la chambre NDIR.
+* **Fermeture par inserts M3** : 4 inserts filetés en laiton insérés à chaud au fer à souder garantissent un vissage propre et réversible de la façade avec des vis M3.
 
 ***
 
