@@ -237,6 +237,10 @@ flowchart LR
 > - Les bornes **`B+`** et **`B-`** doivent être reliées **uniquement aux fils de la batterie LiPo** (Rouge sur `B+`, Noir sur `B-`).
 > - Les bornes **`OUT+`** et **`OUT-`** alimentent le reste du circuit (vers le MT3608).  
 > *Si vous câblez par erreur le circuit sur `B+ / B-`, la batterie ne prendra pas le relais lorsque le câble de charge est débranché et les sécurités anti-décharge profonde seront inopérantes.*
+> 
+> 🚨 **ATTENTION au raccordement du pont diviseur (Mesure Batterie) :**  
+> - La résistance **R1 (100 kΩ)** doit être soudée **impérativement sur la ligne batterie 3,7V** (sur la borne `OUT+` du TP4056, ou l'entrée `IN+` du MT3608, ou directement sur le fil rouge de la LiPo).  
+> - **Ne raccordez JAMAIS R1 sur la sortie 5V du MT3608 ni sur la broche 5V du XIAO !** Si R1 est branchée sur le 5V, l'ADC lira ~2,6 V (qui correspond à 5,2 V calculé) et la batterie restera **bloquée à 100% en permanence**, sans jamais descendre.
 
 ### Détail du pont diviseur — mesure de la batterie
 
@@ -257,6 +261,19 @@ flowchart TD
 | **3.80 V** (tension nominale) | ~1.90 V | ~60% |
 | **3.40 V** (seuil batterie faible) | ~1.70 V | ~15% (Alerte visuelle oiseau) |
 | **3.25 V** (seuil critique) | ~1.62 V | ~3% (Coupure veille profonde) |
+
+### ⚙️ Calage mécanique et réglage du servomoteur (SG90)
+
+Au tout premier allumage physique (ou après chaque téléversement / bouton RESET), les firmwares exécutent automatiquement un **balancement de test complet** sous vos yeux :
+1. Position **HAUT (180°)** pendant 2 secondes.
+2. Bascule en position **BAS (0°)** pendant 2,5 secondes.
+3. Retour en position **HAUT (180°)** pendant 2,5 secondes.
+
+> 💡 **Comment caler l'oiseau sur l'axe :**  
+> - Lorsque le test se termine, le moteur s'arrête pile en **position HAUT (180°)**.  
+> - Enfoncez le palonnier blanc (ou l'axe de l'oiseau) sur les crans en tenant l'oiseau **parfaitement vertical**.  
+> - **Si l'oiseau force en bas et ne remonte pas tout à fait droit :** l'ensemble est décalé d'une dent sur l'axe. Déclipsez délicatement le palonnier et décalez-le d'un cran vers le haut.  
+> - **Si le sens est inversé (il descend au lieu de monter) :** activez `#define SERVO_INVERT true` au début du firmware.
 
 ***
 
@@ -409,8 +426,11 @@ Si vous utilisez déjà **Visual Studio Code**, aucun compilateur externe n'est 
 
 #### Pour le firmware Zigbee 3.0 (`birdie_zigbee.ino`) :
 1. Dans **Zigbee2MQTT** ou **Home Assistant ZHA**, cliquez sur **"Autoriser l'appairage"** (*Permit join*).
-2. Au premier allumage, le Birdie cherche automatiquement le réseau pendant 90 secondes et s'associe.
-3. **Réinitialisation usine / Nouvel appairage** : En cas de changement de réseau ou de coordinateur, maintenez le bouton physique **BOOT (GPIO9)** enfoncé pendant **3 secondes**. L'appareil efface ses anciens identifiants Zigbee et relance immédiatement une recherche propre.
+2. Au premier allumage, le Birdie effectue un test de course du servomoteur, puis cherche automatiquement le réseau et s'associe.
+3. **Deux modes d'alimentation configurables** au début du fichier :
+   - `PERMANENT_POWERED = false` (**Mode Batterie**) : Fonctionne en *Smart Eco Mode* (veille de 5 min en air sain, bascule à 60s dès que $CO_2 > 1000$ ppm pour compter les 10 min réelles, et 2 min quand l'oiseau est en bas). Autonomie 8-10 mois.
+   - `PERMANENT_POWERED = true` (**Mode Secteur USB**) : Le Zigbee reste connecté en continu 24h/24 sans mise en veille, avec mesure et mise à jour fluide toutes les 30 secondes.
+4. **Réinitialisation usine / Nouvel appairage** : En cas de changement de réseau ou de coordinateur, maintenez le bouton physique **BOOT (GPIO9)** enfoncé pendant **3 secondes**. L'appareil efface ses anciens identifiants Zigbee et relance immédiatement une recherche propre.
 
 #### Pour le firmware Bluetooth BTHome V2 (`birdie_bthome.ino`) :
 * **Zéro configuration requise** : dès que le Birdie est allumé, Home Assistant (via une clé Bluetooth ou un ESP32 Bluetooth Proxy) le détecte automatiquement avec une notification *"Nouvel appareil BTHome découvert"* ! Cliquez simplement sur **Configurer**.

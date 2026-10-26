@@ -56,9 +56,9 @@ SensirionI2CScd4x scd4x;
 Servo airServo;
 
 void moveBird(bool down) {
-  airServo.attach(PIN_SERVO);
+  airServo.attach(PIN_SERVO, 500, 2500);
   airServo.write(down ? SERVO_ANGLE_DOWN : SERVO_ANGLE_UP);
-  delay(1500); // Laisse 1.5s au moteur pour effectuer sa rotation physique
+  delay(2500); // Laisse 2.5s au moteur pour terminer sa rotation complète sous charge
   airServo.detach(); // Coupe le signal PWM pour stopper tout courant de maintien
   bird_is_down = down;
 }
@@ -156,7 +156,12 @@ void setup() {
   }
 
   if (isDataReady) {
-    scd4x.readMeasurement(co2, temp, hum);
+    uint16_t readErr = scd4x.readMeasurement(co2, temp, hum);
+    if (readErr != 0 || co2 < 350 || temp < -20.0f) {
+      Serial.printf("Données SCD41 invalides ou erreur I2C (code %u, CO2: %u). Réessai dans 1 min.\n", readErr, co2);
+      enterDeepSleep(60);
+      return;
+    }
     Serial.printf("CO2: %u ppm | Temp: %.1f °C | Hum: %.1f %% | Oiseau: %s\n",
                   co2, temp, hum, bird_is_down ? "BAS" : "HAUT");
   } else {

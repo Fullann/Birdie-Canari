@@ -99,9 +99,9 @@ void playBirdChirp() {
 // ── Gestion du servomoteur ──────────────────────────────────────────────────
 void moveBird(bool down) {
   Serial.printf("[SERVO] Mouvement oiseau -> %s\n", down ? "BAS (Alerte)" : "HAUT (Air pur)");
-  airServo.attach(PIN_SERVO);
+  airServo.attach(PIN_SERVO, 500, 2500);
   airServo.write(down ? SERVO_ANGLE_DOWN : SERVO_ANGLE_UP);
-  delay(1500); // Laisse le temps au moteur d'atteindre sa position
+  delay(2500); // Laisse 2.5s au moteur pour terminer sa rotation complète sous charge
   airServo.detach(); // Coupe le PWM pour supprimer tout courant de maintien
   bird_is_down = down;
 }
@@ -278,7 +278,12 @@ void setup() {
     return;
   }
 
-  scd4x.readMeasurement(co2, temp, hum);
+  uint16_t readErr = scd4x.readMeasurement(co2, temp, hum);
+  if (readErr != 0 || co2 < 350 || temp < -20.0f) {
+    Serial.printf("[WARN] Données SCD41 invalides ou erreur I2C (code %u, CO2: %u). Réessai au prochain cycle.\n", readErr, co2);
+    enterDeepSleep(INTERVAL_CHECK_ALERT_SEC);
+    return;
+  }
   Serial.printf("[DATA] CO2: %u ppm | Temp: %.1f °C | Hum: %.1f %% | Oiseau: %s\n",
                 co2, temp, hum, bird_is_down ? "BAS" : "HAUT");
 
