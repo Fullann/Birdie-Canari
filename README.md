@@ -1,5 +1,7 @@
 # 🐦 Birdie DIY — Moniteur de qualité d'air open source
 
+🇬🇧 [English version](./README.en.md)
+
 <p align="center">
   <img src="docs/images/birdie_showcase.jpg" alt="Birdie DIY Showcase" width="420">
 </p>
@@ -668,6 +670,7 @@ L'intégration mécanique et électronique tire pleinement parti du boîtier cyl
 ```
 birdie-diy/
 ├── README.md                            ← Ce document récapitulatif complet
+├── README.en.md                         ← Version anglaise de ce document
 ├── platformio.ini                       ← Configuration de compilation VS Code / PlatformIO
 ├── esphome/
 
